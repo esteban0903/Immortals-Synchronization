@@ -1,12 +1,24 @@
 package edu.eci.arsw.highlandersim;
 
-import edu.eci.arsw.immortals.Immortal;
-import edu.eci.arsw.immortals.ImmortalManager;
-
-import javax.swing.*;
-import java.awt.*;
+import java.awt.BorderLayout;
+import java.awt.FlowLayout;
+import java.awt.Font;
 import java.awt.event.ActionEvent;
 import java.util.List;
+
+import javax.swing.JButton;
+import javax.swing.JComboBox;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JSpinner;
+import javax.swing.JTextArea;
+import javax.swing.SpinnerNumberModel;
+import javax.swing.SwingUtilities;
+
+import edu.eci.arsw.immortals.Immortal;
+import edu.eci.arsw.immortals.ImmortalManager;
 
 public final class ControlFrame extends JFrame {
 
@@ -74,20 +86,27 @@ public final class ControlFrame extends JFrame {
   }
 
   private void onPauseAndCheck(ActionEvent e) {
-    if (manager == null) return;
-    manager.pause();
-    List<Immortal> pop = manager.populationSnapshot();
-    long sum = 0;
-    StringBuilder sb = new StringBuilder();
-    for (Immortal im : pop) {
-      int h = im.getHealth();
-      sum += h;
-      sb.append(String.format("%-14s : %5d%n", im.name(), h));
-    }
-    sb.append("--------------------------------\n");
-    sb.append("Total Health: ").append(sum).append('\n');
-    sb.append("Score (fights): ").append(manager.scoreBoard().totalFights()).append('\n');
-    output.setText(sb.toString());
+      if (manager == null) return;
+      new Thread(() -> {
+          try {
+              manager.pause(); // Bloqueante pero ya no congela la GUI
+              List<Immortal> pop = manager.populationSnapshot();
+              long sum = 0;
+              StringBuilder sb = new StringBuilder();
+              for (Immortal im : pop) {
+                  int h = im.getHealth();
+                  sum += h;
+                  sb.append(String.format("%-14s : %5d%n", im.name(), h));
+              }
+              sb.append("--------------------------------\n");
+              sb.append("Total Health: ").append(sum).append('\n');
+              sb.append("Score (fights): ").append(manager.scoreBoard().totalFights()).append('\n');
+
+              SwingUtilities.invokeLater(() -> output.setText(sb.toString()));
+          } catch (InterruptedException ex) {
+              ex.printStackTrace();
+          }
+      }).start();
   }
 
   private void onResume(ActionEvent e) {

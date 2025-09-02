@@ -1,13 +1,13 @@
 package edu.eci.arsw.immortals;
 
-import edu.eci.arsw.concurrency.PauseController;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+
+import edu.eci.arsw.concurrency.PauseController;
 
 public final class ImmortalManager implements AutoCloseable {
   private final List<Immortal> population = new ArrayList<>();
@@ -41,7 +41,10 @@ public final class ImmortalManager implements AutoCloseable {
     }
   }
 
-  public void pause() { controller.pause(); }
+  public void pause() throws InterruptedException { 
+    controller.pause();
+    controller.waitUntilAllPaused();
+  }
   public void resume() { controller.resume(); }
   public void stop() {
     for (Immortal im : population) im.stop();

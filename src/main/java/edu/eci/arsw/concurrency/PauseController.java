@@ -45,7 +45,7 @@ public final class PauseController {
       lock.unlock();
     }
   }
-  private void setTotalThreads(int n) {
+  public void setTotalThreads(int n) {
     lock.lock();
     try {
         totalThreads = n;

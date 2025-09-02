@@ -1,10 +1,10 @@
 package edu.eci.arsw.immortals;
 
-import edu.eci.arsw.concurrency.PauseController;
-
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ThreadLocalRandom;
+
+import edu.eci.arsw.concurrency.PauseController;
 
 public final class Immortal implements Runnable {
   private final String name;
@@ -60,6 +60,7 @@ public final class Immortal implements Runnable {
       synchronized (other) {
         if (this.health <= 0 || other.health <= 0) return;
         other.health -= this.damage;
+        if (other.health < 0) other.health = 0;
         this.health += this.damage / 2;
         scoreBoard.recordFight();
       }
@@ -73,6 +74,7 @@ public final class Immortal implements Runnable {
       synchronized (second) {
         if (this.health <= 0 || other.health <= 0) return;
         other.health -= this.damage;
+        if (other.health < 0) other.health = 0;
         this.health += this.damage / 2;
         scoreBoard.recordFight();
       }

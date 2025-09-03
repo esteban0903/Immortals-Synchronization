@@ -19,11 +19,13 @@ import javax.swing.SwingUtilities;
 
 import edu.eci.arsw.immortals.Immortal;
 import edu.eci.arsw.immortals.ImmortalManager;
+import edu.eci.arsw.immortals.FightStrategy;
 
 public final class ControlFrame extends JFrame {
 
   private ImmortalManager manager;
   private final JTextArea output = new JTextArea(14, 40);
+  private final JLabel statusLabel = new JLabel("Status: Stopped"); // ✅ NUEVO LABEL PARA STATUS
   private final JButton startBtn = new JButton("Start");
   private final JButton pauseAndCheckBtn = new JButton("Pause & Check");
   private final JButton resumeBtn = new JButton("Resume");
@@ -54,7 +56,11 @@ public final class ControlFrame extends JFrame {
 
     output.setEditable(false);
     output.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
-    add(new JScrollPane(output), BorderLayout.CENTER);
+    
+    JPanel centerPanel = new JPanel(new BorderLayout());
+    centerPanel.add(statusLabel, BorderLayout.NORTH); // ✅ AÑADIR STATUS LABEL
+    centerPanel.add(new JScrollPane(output), BorderLayout.CENTER);
+    add(centerPanel, BorderLayout.CENTER);
 
     JPanel bottom = new JPanel(new FlowLayout(FlowLayout.CENTER));
     bottom.add(startBtn);
@@ -70,7 +76,80 @@ public final class ControlFrame extends JFrame {
 
     pack();
     setLocationByPlatform(true);
-    setVisible(true);
+  }
+
+  // ✅ NUEVO CONSTRUCTOR QUE ACEPTA IMMORTALMANAGER
+  public ControlFrame(ImmortalManager manager) {
+    this.manager = manager;
+    setTitle("Highlander Simulator — ARSW");
+    setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+    setLayout(new BorderLayout(8,8));
+
+    JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
+    top.add(new JLabel("Count:"));
+    top.add(countSpinner);
+    top.add(new JLabel("Health:"));
+    top.add(healthSpinner);
+    top.add(new JLabel("Damage:"));
+    top.add(damageSpinner);
+    top.add(new JLabel("Fight:"));
+    top.add(fightMode);
+    add(top, BorderLayout.NORTH);
+
+    output.setEditable(false);
+    output.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+    
+    JPanel centerPanel = new JPanel(new BorderLayout());
+    centerPanel.add(statusLabel, BorderLayout.NORTH); // ✅ AÑADIR STATUS LABEL
+    centerPanel.add(new JScrollPane(output), BorderLayout.CENTER);
+    add(centerPanel, BorderLayout.CENTER);
+
+    JPanel bottom = new JPanel(new FlowLayout(FlowLayout.CENTER));
+    bottom.add(startBtn);
+    bottom.add(pauseAndCheckBtn);
+    bottom.add(resumeBtn);
+    bottom.add(stopBtn);
+    add(bottom, BorderLayout.SOUTH);
+
+    startBtn.addActionListener(this::onStart);
+    pauseAndCheckBtn.addActionListener(this::onPauseAndCheck);
+    resumeBtn.addActionListener(this::onResume);
+    stopBtn.addActionListener(this::onStop);
+
+    pack();
+    setLocationByPlatform(true);
+  }
+
+  // ✅ NUEVO MÉTODO PARA ACTUALIZAR DISPLAY
+  private void updateDisplay() {
+    if (manager == null) return;
+    
+    try {
+      StringBuilder status = new StringBuilder();
+      status.append("Status: ").append(manager.isRunning() ? "Running" : "Stopped");
+      status.append(" | Strategy: ").append(manager.getFightStrategy()); // ✅ MOSTRAR STRATEGY
+      status.append(" | Battles: ").append(manager.scoreBoard().totalFights());
+      
+      statusLabel.setText(status.toString());
+      
+      // Update display with current immortals info
+      List<Immortal> pop = manager.populationSnapshot();
+      StringBuilder sb = new StringBuilder();
+      long sum = 0;
+      for (Immortal im : pop) {
+        int h = im.getHealth();
+        sum += h;
+        sb.append(String.format("%-14s : %5d%n", im.name(), h));
+      }
+      sb.append("--------------------------------\n");
+      sb.append("Total Health: ").append(sum).append('\n');
+      sb.append("Alive Count: ").append(manager.aliveCount()).append('\n');
+      
+      output.setText(sb.toString());
+      
+    } catch (Exception e) {
+      statusLabel.setText("Error updating display: " + e.getMessage());
+    }
   }
 
   private void onStart(ActionEvent e) {
@@ -79,10 +158,21 @@ public final class ControlFrame extends JFrame {
     int health = (Integer) healthSpinner.getValue();
     int damage = (Integer) damageSpinner.getValue();
     String fight = (String) fightMode.getSelectedItem();
-    manager = new ImmortalManager(n, fight, health, damage);
+    FightStrategy strategy = parseFightStrategy(fight); // ✅ PARSEAR STRATEGY
+    manager = new ImmortalManager(n, health, damage, strategy); // ✅ USAR NUEVO CONSTRUCTOR
     manager.start();
     output.setText("Simulation started with %d immortals (health=%d, damage=%d, fight=%s)%n"
-      .formatted(n, health, damage, fight));
+      .formatted(n, health, damage, strategy));
+    updateDisplay(); // ✅ ACTUALIZAR DISPLAY
+  }
+
+  // ✅ MÉTODO PARA PARSEAR STRATEGY
+  private static FightStrategy parseFightStrategy(String strategy) {
+    return switch (strategy.toLowerCase()) {
+      case "naive" -> FightStrategy.NAIVE;
+      case "ordered" -> FightStrategy.ORDERED;
+      default -> FightStrategy.ORDERED;
+    };
   }
 
   private void onPauseAndCheck(ActionEvent e) {
@@ -90,19 +180,7 @@ public final class ControlFrame extends JFrame {
       new Thread(() -> {
           try {
               manager.pause(); // Bloqueante pero ya no congela la GUI
-              List<Immortal> pop = manager.populationSnapshot();
-              long sum = 0;
-              StringBuilder sb = new StringBuilder();
-              for (Immortal im : pop) {
-                  int h = im.getHealth();
-                  sum += h;
-                  sb.append(String.format("%-14s : %5d%n", im.name(), h));
-              }
-              sb.append("--------------------------------\n");
-              sb.append("Total Health: ").append(sum).append('\n');
-              sb.append("Score (fights): ").append(manager.scoreBoard().totalFights()).append('\n');
-
-              SwingUtilities.invokeLater(() -> output.setText(sb.toString()));
+              SwingUtilities.invokeLater(this::updateDisplay); // ✅ USAR updateDisplay()
           } catch (InterruptedException ex) {
               ex.printStackTrace();
           }
@@ -112,9 +190,13 @@ public final class ControlFrame extends JFrame {
   private void onResume(ActionEvent e) {
     if (manager == null) return;
     manager.resume();
+    updateDisplay(); // ✅ ACTUALIZAR DISPLAY
   }
 
-  private void onStop(ActionEvent e) { safeStop(); }
+  private void onStop(ActionEvent e) { 
+    safeStop(); 
+    updateDisplay(); // ✅ ACTUALIZAR DISPLAY
+  }
 
   private void safeStop() {
     if (manager != null) {

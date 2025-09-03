@@ -93,6 +93,8 @@ public final class ControlFrame extends JFrame {
     top.add(new JLabel("Damage:"));
     top.add(damageSpinner);
     top.add(new JLabel("Fight:"));
+    // ✅ CONFIGURAR EL COMBO CON LA STRATEGY ACTUAL
+    fightMode.setSelectedItem(manager.getFightStrategy() == FightStrategy.NAIVE ? "naive" : "ordered");
     top.add(fightMode);
     add(top, BorderLayout.NORTH);
 
@@ -118,6 +120,10 @@ public final class ControlFrame extends JFrame {
 
     pack();
     setLocationByPlatform(true);
+    
+    // ✅ INICIAR AUTOMÁTICAMENTE CON EL MANAGER PRECONFIGURADO
+    manager.start();
+    updateDisplay();
   }
 
   // ✅ NUEVO MÉTODO PARA ACTUALIZAR DISPLAY
@@ -163,6 +169,7 @@ public final class ControlFrame extends JFrame {
     manager.start();
     output.setText("Simulation started with %d immortals (health=%d, damage=%d, fight=%s)%n"
       .formatted(n, health, damage, strategy));
+    updateDisplay(); // ✅ ACTUALIZAR DISPLAY
     updateDisplay(); // ✅ ACTUALIZAR DISPLAY
   }
 

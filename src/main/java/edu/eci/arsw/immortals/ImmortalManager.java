@@ -33,6 +33,20 @@ public class ImmortalManager implements AutoCloseable {
     pauseController.setTotalThreads(population.size());
   }
 
+  // ✅ CONSTRUCTOR DE COMPATIBILIDAD PARA TESTS EXISTENTES
+  public ImmortalManager(int immortalsCount, String fightMode, int health, int damage) {
+    this(immortalsCount, health, damage, parseFightStrategy(fightMode));
+  }
+
+  // ✅ MÉTODO PARA PARSEAR STRATEGY DESDE STRING
+  private static FightStrategy parseFightStrategy(String strategy) {
+    return switch (strategy.toLowerCase()) {
+      case "naive" -> FightStrategy.NAIVE;
+      case "ordered" -> FightStrategy.ORDERED;
+      default -> FightStrategy.ORDERED;
+    };
+  }
+
   private void initializeImmortals(int count, int health, int damage) {
     for (int i = 0; i < count; i++) {
       String name = String.format("Immortal_%d", i);

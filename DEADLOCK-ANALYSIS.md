@@ -1,6 +1,6 @@
 # Análisis de Deadlock - Estrategias de Sincronización
 
-## Resumen Ejecutivo
+## Resumen 
 
 La implementación de las estrategias NAIVE y ORDERED demostró exitosamente la diferencia entre un enfoque que causa deadlocks y uno que los previene.
 
@@ -95,14 +95,7 @@ jstack [PID]
 2. **jcmd VM.find_deadlocks**: No detecta deadlocks de Virtual Threads
 3. **Herramientas tradicionales**: Diseñadas para Platform Threads, no Virtual Threads
 
-### Herramientas Recomendadas para Virtual Threads
-
-1. **Java Flight Recorder (JFR)**: Mejor para eventos de deadlock de Virtual Threads
-2. **JProfiler**: Soporte específico para Virtual Threads
-3. **Async Profiler**: Perfilado de Virtual Threads
-4. **Application logs**: Logging detallado del estado de la aplicación
-
-## Conclusiones Educativas
+## Conclusiones 
 
 ### 1. **Orden de Locks es Crítico**
 - NAIVE: Orden aleatorio → Deadlock inevitable
@@ -118,30 +111,4 @@ jstack [PID]
 - **Timeout**: Usar `tryLock()` con timeout
 - **Lock-free programming**: Estructuras de datos sin locks
 
-## Recomendaciones
-
-1. **Usa siempre ORDERED** en código de producción
-2. **Implementa logging** para detectar patrones de deadlock
-3. **Considera timeouts** para operaciones críticas
-4. **Actualiza herramientas** de monitoreo para Virtual Threads
-
-## Código de Ejemplo Final
-
-### FightStrategy Enum
-```java
-public enum FightStrategy {
-    NAIVE,    
-    ORDERED   
-}
-```
-
-### Implementación en Immortal
-```java
-public void fight(Immortal opponent) {
-    switch (strategy) {
-        case NAIVE -> fightNaive(opponent);    
-        case ORDERED -> fightOrdered(opponent); 
-    }
-}
-```
 

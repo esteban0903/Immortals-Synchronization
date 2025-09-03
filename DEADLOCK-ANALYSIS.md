@@ -6,30 +6,30 @@ La implementación de las estrategias NAIVE y ORDERED demostró exitosamente la 
 
 ## Resultados Observados
 
-### ✅ Estrategia ORDERED (Sin Deadlocks)
+### Estrategia ORDERED (Sin Deadlocks)
 - **Comportamiento**: Ejecución fluida y continua
 - **Batallas ejecutadas**: 1000+ sin interrupciones
 - **Sincronización**: Lock ordering consistente (immortal con ID menor primero)
 - **Estado final**: Simulación completada exitosamente
 
 ```
-🗡️ [ORDERED] Immortal_0 attacks Immortal_1! (98 HP)
-🗡️ [ORDERED] Immortal_2 attacks Immortal_4! (47 HP)
-🗡️ [ORDERED] Immortal_1 attacks Immortal_3! (91 HP)
+[ORDERED] Immortal_0 attacks Immortal_1! (98 HP)
+[ORDERED] Immortal_2 attacks Immortal_4! (47 HP)
+[ORDERED] Immortal_1 attacks Immortal_3! (91 HP)
 ...
 Simulation completed successfully!
 ```
 
-### ❌ Estrategia NAIVE (Con Deadlocks)
+### Estrategia NAIVE (Con Deadlocks)
 - **Comportamiento**: Aplicación se congela después de ~30 batallas
-- **Última acción**: "⚔️ [NAIVE] Immortal_4 attacks Immortal_3! (50 HP)"
+- **Última acción**: "[NAIVE] Immortal_4 attacks Immortal_3! (50 HP)"
 - **Estado final**: Deadlock detectado
 - **Threads involucrados**: Virtual Threads en ForkJoinPool
 
 ```
-⚔️ [NAIVE] Immortal_0 attacks Immortal_2! (92 HP)
-⚔️ [NAIVE] Immortal_1 attacks Immortal_4! (52 HP)
-⚔️ [NAIVE] Immortal_4 attacks Immortal_3! (50 HP)
+[NAIVE] Immortal_0 attacks Immortal_2! (92 HP)
+[NAIVE] Immortal_1 attacks Immortal_4! (52 HP)
+[NAIVE] Immortal_4 attacks Immortal_3! (50 HP)
 [APLICACIÓN CONGELADA]
 ```
 
@@ -38,11 +38,11 @@ Simulation completed successfully!
 ### Mecanismo del Deadlock NAIVE
 
 ```java
-// Estrategia NAIVE - PROBLEMÁTICA
+
 private void fightNaive(Immortal opponent) {
-    synchronized(this) {          // Lock del immortal actual
-        synchronized(opponent) {   // Lock del oponente (orden no garantizado)
-            // Batalla aquí
+    synchronized(this) {          
+        synchronized(opponent) {   
+            
         }
     }
 }
@@ -58,14 +58,14 @@ private void fightNaive(Immortal opponent) {
 ### Mecanismo de Prevención ORDERED
 
 ```java
-// Estrategia ORDERED - SEGURA
+
 private void fightOrdered(Immortal opponent) {
     Immortal first = this.getId() < opponent.getId() ? this : opponent;
     Immortal second = this.getId() < opponent.getId() ? opponent : this;
     
-    synchronized(first) {    // Siempre lock el ID menor primero
-        synchronized(second) { // Luego el ID mayor
-            // Batalla aquí - sin posibilidad de deadlock
+    synchronized(first) {    
+        synchronized(second) { 
+            
         }
     }
 }
@@ -130,8 +130,8 @@ jstack [PID]
 ### FightStrategy Enum
 ```java
 public enum FightStrategy {
-    NAIVE,    // Causa deadlocks - solo para demostración
-    ORDERED   // Previene deadlocks - usar en producción
+    NAIVE,    
+    ORDERED   
 }
 ```
 
@@ -139,10 +139,9 @@ public enum FightStrategy {
 ```java
 public void fight(Immortal opponent) {
     switch (strategy) {
-        case NAIVE -> fightNaive(opponent);    // Peligroso
-        case ORDERED -> fightOrdered(opponent); // Seguro
+        case NAIVE -> fightNaive(opponent);    
+        case ORDERED -> fightOrdered(opponent); 
     }
 }
 ```
 
-Esta implementación sirve como ejemplo educativo perfecto de cómo las estrategias de sincronización impactan la robustez de aplicaciones concurrentes.

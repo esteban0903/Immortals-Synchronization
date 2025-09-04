@@ -1,7 +1,5 @@
 package edu.eci.arsw.immortals;
 
-import edu.eci.arsw.concurrency.PauseController;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -9,54 +7,95 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-public final class ImmortalManager implements AutoCloseable {
-  private final List<Immortal> population = new ArrayList<>();
-  private final List<Future<?>> futures = new ArrayList<>();
-  private final PauseController controller = new PauseController();
-  private final ScoreBoard scoreBoard = new ScoreBoard();
-  private ExecutorService exec;
+import edu.eci.arsw.concurrency.PauseController;
 
-  private final String fightMode;
+public class ImmortalManager implements AutoCloseable {
+  private final List<Immortal> population;
+  private final List<Future<?>> futures = new ArrayList<>();
+  private final PauseController pauseController;
+  private final ScoreBoard scoreBoard;
+  private ExecutorService executorService;
+  private final FightStrategy fightStrategy;
+
   private final int initialHealth;
   private final int damage;
 
-  public ImmortalManager(int n, String fightMode) {
-    this(n, fightMode, Integer.getInteger("health", 100), Integer.getInteger("damage", 10));
+  /*
+   * Constructor actualizado para incluir la estrategia de pelea.
+   * - fightStrategy: Estrategia de pelea (NAIVE o ORDERED)
+   */
+  public ImmortalManager(int immortalsCount, int health, int damage,
+      FightStrategy fightStrategy) {
+    this.population = new ArrayList<>();
+    this.scoreBoard = new ScoreBoard();
+    this.pauseController = new PauseController();
+    this.fightStrategy = fightStrategy;
+    this.initialHealth = health;
+    this.damage = damage;
+
+    initializeImmortals(immortalsCount, health, damage);
+    pauseController.setTotalThreads(population.size());
   }
 
-  public ImmortalManager(int n, String fightMode, int initialHealth, int damage) {
-    this.fightMode = fightMode;
-    this.initialHealth = initialHealth;
-    this.damage = damage;
-    for (int i=0;i<n;i++) {
-      population.add(new Immortal("Immortal-"+i, initialHealth, damage, population, scoreBoard, controller));
+  public ImmortalManager(int immortalsCount, String fightMode, int health, int damage) {
+    this(immortalsCount, health, damage, parseFightStrategy(fightMode));
+  }
+
+  private static FightStrategy parseFightStrategy(String strategy) {
+    return switch (strategy.toLowerCase()) {
+      case "naive" -> FightStrategy.NAIVE;
+      case "ordered" -> FightStrategy.ORDERED;
+      default -> FightStrategy.ORDERED;
+    };
+  }
+
+  private void initializeImmortals(int count, int health, int damage) {
+    for (int i = 0; i < count; i++) {
+      String name = String.format("Immortal_%d", i);
+      Immortal immortal = new Immortal(name, health, damage, population,
+          scoreBoard, pauseController,
+          fightStrategy); 
+      population.add(immortal);
     }
   }
 
   public synchronized void start() {
-    if (exec != null) stop();
-    exec = Executors.newVirtualThreadPerTaskExecutor();
+    if (executorService != null)
+      stop();
+    executorService = Executors.newVirtualThreadPerTaskExecutor();
     for (Immortal im : population) {
-      futures.add(exec.submit(im));
+      futures.add(executorService.submit(im));
     }
   }
 
-  public void pause() { controller.pause(); }
-  public void resume() { controller.resume(); }
+  public void pause() throws InterruptedException {
+    pauseController.pause();
+    pauseController.waitUntilAllPaused();
+  }
+
+  public void resume() {
+    pauseController.resume();
+  }
+
   public void stop() {
-    for (Immortal im : population) im.stop();
-    if (exec != null) exec.shutdownNow();
+    for (Immortal im : population)
+      im.stopImmortal();
+    if (executorService != null)
+      executorService.shutdownNow();
   }
 
   public int aliveCount() {
     int c = 0;
-    for (Immortal im : population) if (im.isAlive()) c++;
+    for (Immortal im : population)
+      if (im.isImmortalAlive())
+        c++;
     return c;
   }
 
   public long totalHealth() {
     long sum = 0;
-    for (Immortal im : population) sum += im.getHealth();
+    for (Immortal im : population)
+      sum += im.getHealth();
     return sum;
   }
 
@@ -64,8 +103,24 @@ public final class ImmortalManager implements AutoCloseable {
     return Collections.unmodifiableList(new ArrayList<>(population));
   }
 
-  public ScoreBoard scoreBoard() { return scoreBoard; }
-  public PauseController controller() { return controller; }
+  public FightStrategy getFightStrategy() {
+    return fightStrategy;
+  }
 
-  @Override public void close() { stop(); }
+  public boolean isRunning() {
+    return executorService != null && !executorService.isShutdown();
+  }
+
+  public ScoreBoard scoreBoard() {
+    return scoreBoard;
+  }
+
+  public PauseController controller() {
+    return pauseController;
+  }
+
+  @Override
+  public void close() {
+    stop();
+  }
 }

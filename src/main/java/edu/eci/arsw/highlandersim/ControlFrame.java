@@ -149,34 +149,33 @@ public final class ControlFrame extends JFrame {
    * - Muestra la salud total y conteo de vivos
    */
   private void updateDisplay() {
-    if (manager == null)
-      return;
+      if (manager == null) return;
 
-    try {
-      StringBuilder status = new StringBuilder();
-      status.append("Status: ").append(manager.isRunning() ? "Running" : "Stopped");
-      status.append(" | Strategy: ").append(manager.getFightStrategy());
-      status.append(" | Battles: ").append(manager.scoreBoard().totalFights());
+      // Hacer el trabajo pesado en otro hilo
+      new Thread(() -> {
+          StringBuilder status = new StringBuilder();
+          status.append("Status: ").append(manager.isRunning() ? "Running" : "Stopped");
+          status.append(" | Strategy: ").append(manager.getFightStrategy());
+          status.append(" | Battles: ").append(manager.scoreBoard().totalFights());
 
-      statusLabel.setText(status.toString());
+          List<Immortal> pop = manager.populationSnapshot();
+          StringBuilder sb = new StringBuilder();
+          long sum = 0;
+          for (Immortal im : pop) {
+              int h = im.getHealth();
+              sum += h;
+              sb.append(String.format("%-14s : %5d%n", im.name(), h));
+          }
+          sb.append("--------------------------------\n");
+          sb.append("Total Health: ").append(sum).append('\n');
+          sb.append("Alive Count: ").append(manager.aliveCount()).append('\n');
 
-      List<Immortal> pop = manager.populationSnapshot();
-      StringBuilder sb = new StringBuilder();
-      long sum = 0;
-      for (Immortal im : pop) {
-        int h = im.getHealth();
-        sum += h;
-        sb.append(String.format("%-14s : %5d%n", im.name(), h));
-      }
-      sb.append("--------------------------------\n");
-      sb.append("Total Health: ").append(sum).append('\n');
-      sb.append("Alive Count: ").append(manager.aliveCount()).append('\n');
-
-      output.setText(sb.toString());
-
-    } catch (Exception e) {
-      statusLabel.setText("Error updating display: " + e.getMessage());
-    }
+          // Solo actualizar GUI en el EDT
+          SwingUtilities.invokeLater(() -> {
+              statusLabel.setText(status.toString());
+              output.setText(sb.toString());
+          });
+      }).start();
   }
 
   /*
@@ -185,18 +184,20 @@ public final class ControlFrame extends JFrame {
    * - Lee parametros desde los spinners y combo
    */
   private void onStart(ActionEvent e) {
-    safeStop();
-    int n = (Integer) countSpinner.getValue();
-    int health = (Integer) healthSpinner.getValue();
-    int damage = (Integer) damageSpinner.getValue();
-    String fight = (String) fightMode.getSelectedItem();
-    FightStrategy strategy = parseFightStrategy(fight);
-    manager = new ImmortalManager(n, health, damage, strategy);
-    manager.start();
-    output.setText("Simulation started with %d immortals (health=%d, damage=%d, fight=%s)%n"
-        .formatted(n, health, damage, strategy));
-    updateDisplay();
-    updateDisplay();
+      safeStop();
+      int n = (Integer) countSpinner.getValue();
+      int health = (Integer) healthSpinner.getValue();
+      int damage = (Integer) damageSpinner.getValue();
+      String fight = (String) fightMode.getSelectedItem();
+      FightStrategy strategy = parseFightStrategy(fight);
+      manager = new ImmortalManager(n, health, damage, strategy);
+
+      // 🔹 Ejecutar en background para no congelar la GUI
+      new Thread(manager::start).start();
+
+      output.setText("Simulation started with %d immortals (health=%d, damage=%d, fight=%s)%n"
+          .formatted(n, health, damage, strategy));
+      updateDisplay();
   }
 
   private static FightStrategy parseFightStrategy(String strategy) {
@@ -228,13 +229,17 @@ public final class ControlFrame extends JFrame {
   }
 
 private void onStop(ActionEvent e) {
-    if (manager != null) {   
+    if (manager == null) return;
+
+    // Ejecutar pausa y stop en un hilo de fondo para no bloquear el EDT
+    new Thread(() -> {
         try {
-            manager.pause();
+            manager.pause(); // puede bloquear pero está en hilo de fondo
         } catch (InterruptedException ex) {
-            ex.printStackTrace();
+            Thread.currentThread().interrupt();
         }
 
+        // Tomar snapshot y construir texto en background
         List<Immortal> pop = manager.populationSnapshot();
         StringBuilder sb = new StringBuilder("=== FINAL STATE ===\n");
         long sum = 0;
@@ -248,16 +253,16 @@ private void onStop(ActionEvent e) {
         sb.append("Alive Count: ").append(manager.aliveCount()).append('\n');
         sb.append("Battles: ").append(manager.scoreBoard().totalFights()).append('\n');
 
-        output.setText(sb.toString());
-
-
+        // Detener manager (también en background)
         manager.stop();
 
-        // Actualizar status
-        statusLabel.setText("Status: Stopped — Please start a new game");
-
-        manager = null;
-    }
+        // Actualizar la GUI en el EDT
+        SwingUtilities.invokeLater(() -> {
+            output.setText(sb.toString());
+            statusLabel.setText("Status: Stopped — Please start a new game");
+            manager = null;
+        });
+    }).start();
 }
 
   private void safeStop() {

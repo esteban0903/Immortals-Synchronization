@@ -52,13 +52,13 @@ public class Immortal extends Thread {
     try {
       while (!shouldStop) {
         pauseController.awaitIfPaused();
-        if (shouldStop)
-          break;
+        if (shouldStop) break;
         var opponent = pickOpponent();
         if (opponent == null)
           continue;
         fight(opponent);
         Thread.sleep(2);
+        pauseController.awaitIfPaused();
       }
     } catch (InterruptedException ie) {
       Thread.currentThread().interrupt();

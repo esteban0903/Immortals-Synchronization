@@ -3,14 +3,16 @@ package edu.eci.arsw.immortals;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import edu.eci.arsw.concurrency.PauseController;
 
 public class ImmortalManager implements AutoCloseable {
-  private final List<Immortal> population;
+  private final ConcurrentLinkedQueue<Immortal> population;
   private final List<Future<?>> futures = new ArrayList<>();
   private final PauseController pauseController;
   private final ScoreBoard scoreBoard;
@@ -26,7 +28,7 @@ public class ImmortalManager implements AutoCloseable {
    */
   public ImmortalManager(int immortalsCount, int health, int damage,
       FightStrategy fightStrategy) {
-    this.population = new ArrayList<>();
+    this.population = new ConcurrentLinkedQueue<>();
     this.scoreBoard = new ScoreBoard();
     this.pauseController = new PauseController();
     this.fightStrategy = fightStrategy;
@@ -77,12 +79,28 @@ public class ImmortalManager implements AutoCloseable {
     pauseController.resume();
   }
 
-  public void stop() {
-    for (Immortal im : population)
-      im.stopImmortal();
-    if (executorService != null)
-      executorService.shutdownNow();
-  }
+public void stop() {
+    for (Immortal im : population) {
+        im.stopImmortal();
+    }
+
+    if (pauseController.paused()) {
+        pauseController.resume();
+    }
+
+    if (executorService != null) {
+        executorService.shutdown(); 
+        try {
+            if (!executorService.awaitTermination(2, TimeUnit.SECONDS)) {
+                executorService.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            executorService.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+    }
+    population.clear();
+}
 
   public int aliveCount() {
     int c = 0;

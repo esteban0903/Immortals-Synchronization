@@ -17,9 +17,9 @@ import javax.swing.JTextArea;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
 
+import edu.eci.arsw.immortals.FightStrategy;
 import edu.eci.arsw.immortals.Immortal;
 import edu.eci.arsw.immortals.ImmortalManager;
-import edu.eci.arsw.immortals.FightStrategy;
 
 /**
  * GUI para controlar la simulacion de inmortales.
@@ -136,8 +136,8 @@ public final class ControlFrame extends JFrame {
     pack();
     setLocationByPlatform(true);
 
-    manager.start();
-    updateDisplay();
+    //manager.start();
+    //updateDisplay();
   }
 
   /*
@@ -227,10 +227,38 @@ public final class ControlFrame extends JFrame {
     updateDisplay();
   }
 
-  private void onStop(ActionEvent e) {
-    safeStop();
-    updateDisplay();
-  }
+private void onStop(ActionEvent e) {
+    if (manager != null) {   
+        try {
+            manager.pause();
+        } catch (InterruptedException ex) {
+            ex.printStackTrace();
+        }
+
+        List<Immortal> pop = manager.populationSnapshot();
+        StringBuilder sb = new StringBuilder("=== FINAL STATE ===\n");
+        long sum = 0;
+        for (Immortal im : pop) {
+            int h = im.getHealth();
+            sum += h;
+            sb.append(String.format("%-14s : %5d%n", im.name(), h));
+        }
+        sb.append("--------------------------------\n");
+        sb.append("Total Health: ").append(sum).append('\n');
+        sb.append("Alive Count: ").append(manager.aliveCount()).append('\n');
+        sb.append("Battles: ").append(manager.scoreBoard().totalFights()).append('\n');
+
+        output.setText(sb.toString());
+
+
+        manager.stop();
+
+        // Actualizar status
+        statusLabel.setText("Status: Stopped — Please start a new game");
+
+        manager = null;
+    }
+}
 
   private void safeStop() {
     if (manager != null) {

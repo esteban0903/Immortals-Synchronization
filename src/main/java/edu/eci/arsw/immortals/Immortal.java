@@ -1,14 +1,15 @@
 package edu.eci.arsw.immortals;
 
-import edu.eci.arsw.concurrency.PauseController;
-import java.util.List;
+import java.util.Collection;
 import java.util.concurrent.ThreadLocalRandom;
+
+import edu.eci.arsw.concurrency.PauseController;
 
 public class Immortal extends Thread {
   private final String name;
   private volatile int health;
   private final int damage;
-  private final List<Immortal> population;
+  private final Collection<Immortal> population;
   private final ScoreBoard scoreBoard;
   private final PauseController pauseController;
   private volatile boolean shouldStop = false;
@@ -18,7 +19,7 @@ public class Immortal extends Thread {
    * Constructor actualizado para incluir la estrategia de pelea.
    * - fightStrategy: Estrategia de pelea (NAIVE o ORDERED)
    */
-  public Immortal(String name, int health, int damage, List<Immortal> population,
+  public Immortal(String name, int health, int damage, Collection<Immortal> population,
       ScoreBoard scoreBoard, PauseController pauseController,
       FightStrategy fightStrategy) {
     this.name = name;
@@ -51,25 +52,28 @@ public class Immortal extends Thread {
     try {
       while (!shouldStop) {
         pauseController.awaitIfPaused();
-        if (shouldStop)
-          break;
+        if (shouldStop) break;
         var opponent = pickOpponent();
         if (opponent == null)
           continue;
         fight(opponent);
         Thread.sleep(2);
+        pauseController.awaitIfPaused();
       }
     } catch (InterruptedException ie) {
       Thread.currentThread().interrupt();
+    } finally {
+      population.remove(this);
+      pauseController.setTotalThreads(population.size());
     }
   }
 
   private Immortal pickOpponent() {
-    if (population.size() <= 1)
-      return null;
+    Object[] arr = population.toArray(); 
+    if (arr.length <= 1) return null;
     Immortal other;
     do {
-      other = population.get(ThreadLocalRandom.current().nextInt(population.size()));
+      other = (Immortal) arr[ThreadLocalRandom.current().nextInt(arr.length)];
     } while (other == this);
     return other;
   }
@@ -85,14 +89,7 @@ public class Immortal extends Thread {
   private void fightNaive(Immortal opponent) {
     synchronized (this) {
       synchronized (opponent) {
-        if (this.health > 0 && opponent.health > 0) {
-          this.health += this.damage / 2;
-          opponent.health -= this.damage;
-          scoreBoard.recordFight();
-
-          System.out.printf("⚔️ [NAIVE] %s attacks %s! (%d HP)%n",
-              this.name, opponent.name, opponent.health);
-        }
+        doFight(opponent, "NAIVE");
       }
     }
   }
@@ -103,13 +100,24 @@ public class Immortal extends Thread {
 
     synchronized (first) {
       synchronized (second) {
-        if (this.health > 0 && opponent.health > 0) {
-          this.health += this.damage / 2;
-          opponent.health = Math.max(0, opponent.health - this.damage);
-          scoreBoard.recordFight();
+        doFight(opponent, "ORDERED");
+      }
+    }
+  }
+  private void doFight(Immortal opponent, String mode) {
+    if (this.health > 0 && opponent.health > 0) {
+      this.health += this.damage / 2;
+      opponent.health = Math.max(0, opponent.health - this.damage);
+      scoreBoard.recordFight();
 
-          System.out.printf("[ORDERED] %s attacks %s! (%d HP)%n",
-              this.name, opponent.name, opponent.health);
+      System.out.printf("[%s] %s attacks %s! (%d HP)%n",
+          mode, this.name, opponent.name, opponent.health);
+
+      if (opponent.health <= 0) {
+        opponent.stopImmortal();
+        boolean removed = population.remove(opponent);
+        if (removed) {
+          pauseController.setTotalThreads(population.size());
         }
       }
     }

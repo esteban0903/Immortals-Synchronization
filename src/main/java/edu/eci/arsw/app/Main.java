@@ -1,11 +1,13 @@
 package edu.eci.arsw.app;
 
+import javax.swing.SwingUtilities;
+
 import edu.eci.arsw.demos.DeadlockDemo;
 import edu.eci.arsw.demos.OrderedTransferDemo;
 import edu.eci.arsw.demos.TryLockTransferDemo;
+import edu.eci.arsw.highlandersim.ControlFrame;
 import edu.eci.arsw.immortals.FightStrategy;
 import edu.eci.arsw.immortals.ImmortalManager;
-import edu.eci.arsw.highlandersim.ControlFrame;
 
 public class Main {
   public static void main(String[] args) throws Exception {
@@ -32,24 +34,29 @@ public class Main {
    * - Maneja excepciones e imprime errores
    * - Crea ImmortalManager y ControlFrame y los conecta
    */
-  private static void runHighlanderSimulator() {
+private static void runHighlanderSimulator() {
     try {
-      int count = Integer.parseInt(System.getProperty("count", "8"));
-      int health = Integer.parseInt(System.getProperty("health", "100"));
-      int damage = Integer.parseInt(System.getProperty("damage", "10"));
-      FightStrategy strategy = parseFightStrategy(System.getProperty("fight", "ordered"));
+        int count = Integer.parseInt(System.getProperty("count", "8"));
+        int health = Integer.parseInt(System.getProperty("health", "100"));
+        int damage = Integer.parseInt(System.getProperty("damage", "10"));
+        FightStrategy strategy = parseFightStrategy(System.getProperty("fight", "ordered"));
 
-      System.out.printf("Starting Highlander Simulator: %d immortals, %d HP, %d damage, %s strategy%n",
-          count, health, damage, strategy);
+        System.out.printf(
+            "Starting Highlander Simulator: %d immortals, %d HP, %d damage, %s strategy%n",
+            count, health, damage, strategy
+        );
 
-      ImmortalManager manager = new ImmortalManager(count, health, damage, strategy);
-      new ControlFrame(manager).setVisible(true);
+        ImmortalManager manager = new ImmortalManager(count, health, damage, strategy);
+
+        SwingUtilities.invokeLater(() -> {
+            new ControlFrame(manager).setVisible(true);
+        });
 
     } catch (Exception e) {
-      System.err.println("Error starting simulator: " + e.getMessage());
-      e.printStackTrace();
+        System.err.println("Error starting simulator: " + e.getMessage());
+        e.printStackTrace();
     }
-  }
+}
 
   /*
    * METODO PARA PARSEAR STRATEGY DESDE STRING

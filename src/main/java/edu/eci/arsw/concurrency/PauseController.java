@@ -49,6 +49,9 @@ public final class PauseController {
     lock.lock();
     try {
         totalThreads = n;
+        if (pausedThreads >= totalThreads) {
+          allPaused.signalAll();
+        }
     } finally {
         lock.unlock();
     }

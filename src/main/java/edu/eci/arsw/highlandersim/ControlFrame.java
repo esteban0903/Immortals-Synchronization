@@ -42,7 +42,7 @@ public final class ControlFrame extends JFrame {
   private final JButton resumeBtn = new JButton("Resume");
   private final JButton stopBtn = new JButton("Stop");
 
-  private final JSpinner countSpinner = new JSpinner(new SpinnerNumberModel(8, 2, 5000, 1));
+  private final JSpinner countSpinner = new JSpinner(new SpinnerNumberModel(8, 2, 100000, 1));
   private final JSpinner healthSpinner = new JSpinner(new SpinnerNumberModel(100, 10, 10000, 10));
   private final JSpinner damageSpinner = new JSpinner(new SpinnerNumberModel(10, 1, 1000, 1));
   private final JComboBox<String> fightMode = new JComboBox<>(new String[] { "ordered", "naive" });
@@ -103,10 +103,13 @@ public final class ControlFrame extends JFrame {
 
     JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
     top.add(new JLabel("Count:"));
+    countSpinner.setValue(manager.populationSnapshot().size());
     top.add(countSpinner);
     top.add(new JLabel("Health:"));
+    healthSpinner.setValue(manager.getInitialHealth());
     top.add(healthSpinner);
     top.add(new JLabel("Damage:"));
+    damageSpinner.setValue(manager.getDamage());
     top.add(damageSpinner);
     top.add(new JLabel("Fight:"));
     fightMode.setSelectedItem(manager.getFightStrategy() == FightStrategy.NAIVE ? "naive" : "ordered");
@@ -136,8 +139,6 @@ public final class ControlFrame extends JFrame {
     pack();
     setLocationByPlatform(true);
 
-    //manager.start();
-    //updateDisplay();
   }
 
   /*
@@ -149,33 +150,32 @@ public final class ControlFrame extends JFrame {
    * - Muestra la salud total y conteo de vivos
    */
   private void updateDisplay() {
-      if (manager == null) return;
+    if (manager == null)
+      return;
 
-      // Hacer el trabajo pesado en otro hilo
-      new Thread(() -> {
-          StringBuilder status = new StringBuilder();
-          status.append("Status: ").append(manager.isRunning() ? "Running" : "Stopped");
-          status.append(" | Strategy: ").append(manager.getFightStrategy());
-          status.append(" | Battles: ").append(manager.scoreBoard().totalFights());
+    new Thread(() -> {
+      StringBuilder status = new StringBuilder();
+      status.append("Status: ").append(manager.isRunning() ? "Running" : "Stopped");
+      status.append(" | Strategy: ").append(manager.getFightStrategy());
+      status.append(" | Battles: ").append(manager.scoreBoard().totalFights());
 
-          List<Immortal> pop = manager.populationSnapshot();
-          StringBuilder sb = new StringBuilder();
-          long sum = 0;
-          for (Immortal im : pop) {
-              int h = im.getHealth();
-              sum += h;
-              sb.append(String.format("%-14s : %5d%n", im.name(), h));
-          }
-          sb.append("--------------------------------\n");
-          sb.append("Total Health: ").append(sum).append('\n');
-          sb.append("Alive Count: ").append(manager.aliveCount()).append('\n');
+      List<Immortal> pop = manager.populationSnapshot();
+      StringBuilder sb = new StringBuilder();
+      long sum = 0;
+      for (Immortal im : pop) {
+        int h = im.getHealth();
+        sum += h;
+        sb.append(String.format("%-14s : %5d%n", im.name(), h));
+      }
+      sb.append("--------------------------------\n");
+      sb.append("Total Health: ").append(sum).append('\n');
+      sb.append("Alive Count: ").append(manager.aliveCount()).append('\n');
 
-          // Solo actualizar GUI en el EDT
-          SwingUtilities.invokeLater(() -> {
-              statusLabel.setText(status.toString());
-              output.setText(sb.toString());
-          });
-      }).start();
+      SwingUtilities.invokeLater(() -> {
+        statusLabel.setText(status.toString());
+        output.setText(sb.toString());
+      });
+    }).start();
   }
 
   /*
@@ -184,20 +184,26 @@ public final class ControlFrame extends JFrame {
    * - Lee parametros desde los spinners y combo
    */
   private void onStart(ActionEvent e) {
-      safeStop();
-      int n = (Integer) countSpinner.getValue();
-      int health = (Integer) healthSpinner.getValue();
-      int damage = (Integer) damageSpinner.getValue();
-      String fight = (String) fightMode.getSelectedItem();
-      FightStrategy strategy = parseFightStrategy(fight);
-      manager = new ImmortalManager(n, health, damage, strategy);
+    safeStop();
 
-      // 🔹 Ejecutar en background para no congelar la GUI
-      new Thread(manager::start).start();
+    int n = (Integer) countSpinner.getValue();
+    int health = (Integer) healthSpinner.getValue();
+    int damage = (Integer) damageSpinner.getValue();
+    String fight = (String) fightMode.getSelectedItem();
+    FightStrategy strategy = parseFightStrategy(fight);
 
-      output.setText("Simulation started with %d immortals (health=%d, damage=%d, fight=%s)%n"
-          .formatted(n, health, damage, strategy));
-      updateDisplay();
+    System.out.println("Starting simulation with: count=" + n + ", health=" + health +
+        ", damage=" + damage + ", strategy=" + strategy);
+
+    manager = new ImmortalManager(n, health, damage, strategy);
+
+    new Thread(() -> {
+      manager.start();
+      SwingUtilities.invokeLater(this::updateDisplay);
+    }).start();
+
+    output.setText(String.format("Simulation started with %d immortals (health=%d, damage=%d, fight=%s)%n",
+        n, health, damage, strategy));
   }
 
   private static FightStrategy parseFightStrategy(String strategy) {
@@ -228,47 +234,51 @@ public final class ControlFrame extends JFrame {
     updateDisplay();
   }
 
-private void onStop(ActionEvent e) {
-    if (manager == null) return;
+  private void onStop(ActionEvent e) {
+    if (manager == null)
+      return;
 
-    // Ejecutar pausa y stop en un hilo de fondo para no bloquear el EDT
     new Thread(() -> {
-        try {
-            manager.pause(); // puede bloquear pero está en hilo de fondo
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-        }
+      try {
+        manager.pause();
+      } catch (InterruptedException ex) {
+        Thread.currentThread().interrupt();
+      }
 
-        // Tomar snapshot y construir texto en background
-        List<Immortal> pop = manager.populationSnapshot();
-        StringBuilder sb = new StringBuilder("=== FINAL STATE ===\n");
-        long sum = 0;
-        for (Immortal im : pop) {
-            int h = im.getHealth();
-            sum += h;
-            sb.append(String.format("%-14s : %5d%n", im.name(), h));
-        }
-        sb.append("--------------------------------\n");
-        sb.append("Total Health: ").append(sum).append('\n');
-        sb.append("Alive Count: ").append(manager.aliveCount()).append('\n');
-        sb.append("Battles: ").append(manager.scoreBoard().totalFights()).append('\n');
+      List<Immortal> pop = manager.populationSnapshot();
+      StringBuilder sb = new StringBuilder("=== FINAL STATE ===\n");
+      long sum = 0;
+      for (Immortal im : pop) {
+        int h = im.getHealth();
+        sum += h;
+        sb.append(String.format("%-14s : %5d%n", im.name(), h));
+      }
+      sb.append("--------------------------------\n");
+      sb.append("Total Health: ").append(sum).append('\n');
+      sb.append("Alive Count: ").append(manager.aliveCount()).append('\n');
+      sb.append("Battles: ").append(manager.scoreBoard().totalFights()).append('\n');
 
-        // Detener manager (también en background)
-        manager.stop();
+      manager.stop();
 
-        // Actualizar la GUI en el EDT
-        SwingUtilities.invokeLater(() -> {
-            output.setText(sb.toString());
-            statusLabel.setText("Status: Stopped — Please start a new game");
-            manager = null;
-        });
+      SwingUtilities.invokeLater(() -> {
+        output.setText(sb.toString());
+        statusLabel.setText("Status: Stopped — Please start a new game");
+        manager = null;
+      });
     }).start();
-}
+  }
 
   private void safeStop() {
     if (manager != null) {
+      System.out.println("Stopping previous simulation...");
       manager.stop();
       manager = null;
+      try {
+        Thread.sleep(100);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+      }
+      System.out.println("Previous simulation stopped.");
     }
   }
 

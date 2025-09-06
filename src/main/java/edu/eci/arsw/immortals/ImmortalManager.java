@@ -125,6 +125,14 @@ public void stop() {
     return fightStrategy;
   }
 
+  public int getInitialHealth() {
+    return initialHealth;
+  }
+
+  public int getDamage() {
+    return damage;
+  }
+
   public boolean isRunning() {
     return executorService != null && !executorService.isShutdown();
   }
